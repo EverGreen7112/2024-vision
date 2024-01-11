@@ -2,6 +2,7 @@ import math
 import numpy as np
 
 INCHES_TO_METER = 2.54 / 100
+# TODO: change to this seasons tag
 SIDE_LENGTH = 15.24#0.1651
 BASIS_AXIS_MATRIX = np.array([[SIDE_LENGTH/2, 0, 0, 0],
                               [0, SIDE_LENGTH/2, 0, 0],

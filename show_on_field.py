@@ -3,6 +3,8 @@ from threading import Thread
 import cv2
 import copy
 
+
+# TODO: update to use this seasons field
 METER_TO_PIXELS = 462.48821794645846
 UNIT = 100
 SHAPE = [[UNIT, UNIT],

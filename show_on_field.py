@@ -37,7 +37,7 @@ def show_on_field():
         except:
             frame = last_frame
         frame = cv2.resize(frame, (1000, 500))
-        last_frame = frame
+        last_frame = copy.deepcopy(frame)
         # cv2.circle(frame, (int(xyz[0] + half_width), int(xyz[2] + half_height)), 1000, (255,0,0), 1000)
         cv2.imshow("feed", frame)
         cv2.waitKey(1)

@@ -101,7 +101,7 @@ def tag_projected_points_to_transform(tag: list[list[int or float]],
     :param tag_shape: a matrix representing the shape of the tag if the center point was (0,0,0), it starts with the
     down right corner and goes clockwise from there
     :param tag: the tag corners as projected in the image in the same order as they were identified
-    :param width: the images's width in pixels
+    :param width: the image's width in pixels
     :param height: the image's height in pixels
     :param focal_length_x: the focal length in the x axis (tan(fov_x/2)*2) * diagonal
     :param focal_length_y: the focal length in the y axis (tan(fov_y/2)*2) * diagonal

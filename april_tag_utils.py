@@ -11,9 +11,8 @@ def detect_april_tags(image: np.ndarray) -> tuple[list[list[list[int]]], list[in
     """
     processed_frame = copy.deepcopy(image)
     processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2GRAY)
-    # TODO: make sure to switch it back to 36H11 for the actual code
     # NOTE: ori and itay you can cry me a river about the apriltag format not being a constant / parameter
-    cv2.aruco_dict = cv2.aruco.DICT_APRILTAG_16h5  # cv2.aruco.DICT_APRILTAG_36H11
+    cv2.aruco_dict = cv2.aruco.DICT_APRILTAG_36H11
 
     parameters = cv2.aruco.DetectorParameters()
     detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco_dict), parameters)

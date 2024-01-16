@@ -5,14 +5,15 @@ import copy
 
 
 # TODO: update to use this seasons field
-METER_TO_PIXELS = 462.48821794645846
+METER_TO_PIXELS_X = 164.78798618850138
+METER_TO_PIXELS_Y = 164.009249323681
 UNIT = 100
 SHAPE = [[UNIT, UNIT],
          [UNIT, -UNIT],
          [-UNIT, -UNIT],
          [-UNIT, UNIT]]
 
-xyz = [0, 0, 0]
+xyz = [8, 0, 4]
 rotation = 0
 
 
@@ -25,15 +26,15 @@ def show_on_field():
     last_frame = copy.deepcopy(field)
     while True:
         frame = copy.deepcopy(field)
-        shape = [[v[0] * math.cos(rotation) - v[1] * math.sin(rotation) + xyz[0] * METER_TO_PIXELS + half_width,
-                  v[0] * math.sin(rotation) + v[1] * math.cos(rotation) + xyz[2] * METER_TO_PIXELS + half_height] for v
+        shape = [[v[0] * math.cos(rotation) - v[1] * math.sin(rotation) + xyz[0] * METER_TO_PIXELS_X + half_width,
+                  v[0] * math.sin(rotation) + v[1] * math.cos(rotation) + xyz[2] * METER_TO_PIXELS_Y + half_height] for v
                  in SHAPE]
         try:
             for i in range(len(shape)):
                 v1 = shape[i]
                 v2 = shape[(i + 1) % len(shape)]
                 cv2.line(frame, (int(v1[0]), int(v1[1])),
-                         (int(v2[0]), int(v2[1])), (0, 255, 0), 100)
+                         (int(v2[0]), int(v2[1])), (0, 255, 0), 10)
         except:
             frame = last_frame
         frame = cv2.resize(frame, (1000, 500))

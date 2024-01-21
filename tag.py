@@ -41,8 +41,8 @@ class Tag:
             self.y = y
             self.z = z
 
-        self.x -= (FIELD_WIDTH * 0.5)
-        self.z -= (FIELD_HEIGHT * 0.5)
+        # self.x -= (FIELD_WIDTH * 0.5)
+        self.z -= FIELD_HEIGHT
         self.z *= -1
         self.yaw = math.radians(yaw_degrees+90)
         self.pitch = math.radians(pitch_degrees)

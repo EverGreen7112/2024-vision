@@ -74,12 +74,12 @@ last_is_accurate = False  # tells you if the last estimation is accurate
 #               }
 
 # these values are for refining the estimation
-MAX_VEL = 300  # maximum velocity of the robot, if passed we can assume there was a problem with the pose estimation
+MAX_VEL = 5  # maximum velocity of the robot, if passed we can assume there was a problem with the pose estimation
 MAX_ACCEL = 15000  # maximum acceleration of the robot, if passed we can assume there was a problem with the pose
-MIN_CONFIDENCE = 0.0023
+MIN_CONFIDENCE = 0.02
 SPEED_WEIGHT = 10  # how much weight we give speed in confidence estimation
 ROT_WEIGHT = 100  # how much weight we give the rotation in confidence estimation
-QUANTIZATION_LEVELS = 16  # how many levels do we want to divide the image to
+QUANTIZATION_LEVELS = 12  # how many levels do we want to divide the image to
 
 def denoise_frame(frame):
     processed_frame = copy.deepcopy(frame)
@@ -149,12 +149,70 @@ def refine_estimation(pose_estimates, rot_estimates, estimation_confidences, del
     return cam_xyz, rotation
 
 
-def main():
+def runPipeline(image, llrobot):  # this function is in a format for putting it on the limelight
     global last_is_accurate, last_time
+    cur_time = time.time()
+    dst = cv2.remap(image, mapx, mapy, cv2.INTER_LINEAR)
+    # crop the image
+    x, y, w, h = roi
+    frame = dst[y:y + h, x:x + w]
+
+    processed_frame = denoise_frame(frame)
+
+    # TODO: delete this later as this is for debugging
+    cv2.imshow("debug", processed_frame)
+
+    delta_time = cur_time - last_time
+
+    proj_squares, ids = detect_april_tags(processed_frame)
+    draw(frame, proj_squares, ids)
+    pose_estimates = []
+    rot_estimates = []
+    estimation_confidences = []
+
+    for i in range(len(ids)):
+        tag_id = ids[i]
+        if tag_id in settings.TAGS_INVERSE.keys():  # only process tags we know
+            projected_points = proj_squares[i]
+            # return tag to origin
+            field_oriented_inv_axis_matrix = settings.TAGS_INVERSE[tag_id]
+            tag_transformation_matrix, abs_distance = tag_projected_points_to_transform(tag=projected_points,
+                                                                                        width=WIDTH,
+                                                                                        height=HEIGHT,
+                                                                                        tag_shape=tag.BASIS_TAG_COORDS_MATRIX,
+                                                                                        focal_length_x=F_LENGTH_X_LIFECAM,
+                                                                                        focal_length_y=F_LENGTH_Y_LIFECAM)
+            camera_oriented_axis_mat = tag_transformation_matrix @ tag.BASIS_AXIS_MATRIX
+            extrinsic_matrix = camera_oriented_axis_mat @ field_oriented_inv_axis_matrix
+            cam_xyz = extrinsic_matrix_to_camera_position(extrinsic_matrix)
+            rotation = extrinsic_matrix_to_rotation(extrinsic_matrix)
+
+            # this part here does some epic pose estimation refinement
+            pose_estimates.append(cam_xyz)
+            rot_estimates.append(np.array(rotation))
+            estimation_confidences.append(estimate_confidence(cam_xyz, abs_distance, rotation, delta_time))
+
+            # draw everything on the frame
+            draw_tag_axis(frame, camera_oriented_axis_mat, projected_points)
+    if len(pose_estimates) > 0:
+        cam_xyz, rotation = refine_estimation(pose_estimates, rot_estimates, estimation_confidences,
+                                              delta_time)
+        print(cam_xyz)
+        if last_is_accurate:
+            submit_final_estimation(cam_xyz, rotation)
+    else:
+        cam_xyz = last_pos_estimate
+        last_is_accurate = False
+    last_time = cur_time
+    return [], frame, cam_xyz
+
+
+
+def main():
     cam.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
     cam.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
     # cam.set(cv2.CAP_PROP_FPS, 30)
-    cam.set(cv2.CAP_PROP_EXPOSURE, -8)
+    cam.set(cv2.CAP_PROP_EXPOSURE, -7)
 
     cv2.namedWindow("Display", cv2.WINDOW_AUTOSIZE)
 
@@ -164,63 +222,11 @@ def main():
     # you are welcome to cry about it
 
     while True:
-        cur_time = time.time()
         ok, frame = cam.read()
         if ok:
-            dst = cv2.remap(frame, mapx, mapy, cv2.INTER_LINEAR)
-
-            # crop the image
-            x, y, w, h = roi
-            frame = dst[y:y + h, x:x + w]
-
-            processed_frame = denoise_frame(frame)
-            # TODO: delete this later as this is for debugging
-            cv2.imshow("debug", processed_frame)
-
-            delta_time = cur_time - last_time
-
-            proj_squares, ids = detect_april_tags(processed_frame)
-            draw(frame, proj_squares, ids)
-            pose_estimates = []
-            rot_estimates = []
-            estimation_confidences = []
-
-            for i in range(len(ids)):
-                tag_id = ids[i]
-                if tag_id in settings.TAGS_INVERSE.keys():  # only process tags we know
-                    projected_points = proj_squares[i]
-                    # return tag to origin
-                    field_oriented_inv_axis_matrix = settings.TAGS_INVERSE[tag_id]
-                    tag_transformation_matrix, abs_distance = tag_projected_points_to_transform(tag=projected_points,
-                                                                                                width=WIDTH,
-                                                                                                height=HEIGHT,
-                                                                                                tag_shape=tag.BASIS_TAG_COORDS_MATRIX,
-                                                                                                focal_length_x=F_LENGTH_X_LIFECAM,
-                                                                                                focal_length_y=F_LENGTH_Y_LIFECAM)
-                    camera_oriented_axis_mat = tag_transformation_matrix @ tag.BASIS_AXIS_MATRIX
-                    extrinsic_matrix = camera_oriented_axis_mat @ field_oriented_inv_axis_matrix
-                    cam_xyz = extrinsic_matrix_to_camera_position(extrinsic_matrix)
-                    rotation = extrinsic_matrix_to_rotation(extrinsic_matrix)
-
-                    # this part here does some epic pose estimation refinement
-                    pose_estimates.append(cam_xyz)
-                    rot_estimates.append(np.array(rotation))
-                    estimation_confidences.append(estimate_confidence(cam_xyz, abs_distance, rotation, delta_time))
-
-                    # draw everything on the frame
-                    draw_tag_axis(frame, camera_oriented_axis_mat, projected_points)
-                if len(pose_estimates) > 0:
-                    cam_xyz, rotation = refine_estimation(pose_estimates, rot_estimates, estimation_confidences,
-                                                          delta_time)
-                    print(cam_xyz)
-                    if last_is_accurate:
-                        submit_final_estimation(cam_xyz, rotation)
-            else:
-                last_is_accurate = False
-
+            _, frame, _ = runPipeline(frame, None)
             cv2.imshow('Display', frame)
             cv2.waitKey(1)
-        last_time = cur_time
 
 
 if __name__ == '__main__':

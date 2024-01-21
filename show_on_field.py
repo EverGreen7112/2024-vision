@@ -20,14 +20,12 @@ rotation = 0
 def show_on_field():
     cv2.namedWindow("feed", cv2.WINDOW_AUTOSIZE)
     field = cv2.imread('field.png')
-    half_height, half_width, idfk = field.shape
-    half_height *= 0.5
-    half_width *= 0.5
+    height, width, idfk = field.shape
     last_frame = copy.deepcopy(field)
     while True:
         frame = copy.deepcopy(field)
-        shape = [[v[0] * math.cos(rotation) - v[1] * math.sin(rotation) + xyz[0] * METER_TO_PIXELS_X + half_width,
-                  v[0] * math.sin(rotation) + v[1] * math.cos(rotation) + xyz[2] * METER_TO_PIXELS_Y + half_height] for v
+        shape = [[v[0] * math.cos(rotation) - v[1] * math.sin(rotation) + xyz[0] * METER_TO_PIXELS_X,
+                  v[0] * math.sin(rotation) + v[1] * math.cos(rotation) + xyz[2] * METER_TO_PIXELS_Y] for v
                  in SHAPE]
         try:
             v1 = shape[3]

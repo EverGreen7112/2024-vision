@@ -34,7 +34,6 @@ last_rot_estimate = np.array([0.0, 0.0, 0.0])
 last_time = 0
 last_is_accurate = False  # tells you if the last estimation is accurate
 
-
 # # NOTE: ori and itay, ignore these, they are here for testing purposes
 # debug_matrix = np.array([[1, 0, 0, -700],
 #                          [0, 1, 0, 0],
@@ -78,15 +77,19 @@ last_is_accurate = False  # tells you if the last estimation is accurate
 MAX_VEL = 300  # maximum velocity of the robot, if passed we can assume there was a problem with the pose estimation
 MAX_ACCEL = 15000  # maximum acceleration of the robot, if passed we can assume there was a problem with the pose
 MIN_CONFIDENCE = 0.0023
-SPEED_WEIGHT = 10 # how much weight do we give speed in confidence estimation
-
+SPEED_WEIGHT = 10  # how much weight we give speed in confidence estimation
+ROT_WEIGHT = 100  # how much weight we give the rotation in confidence estimation
+QUANTIZATION_LEVELS = 16  # how many levels do we want to divide the image to
 
 def denoise_frame(frame):
-    frame = cv2.GaussianBlur(frame, [3, 3], sigmaX=0.3, sigmaY=0.3)
-    frame = cv2.medianBlur(frame, 5)
-    # kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
-    # frame = cv2.filter2D(frame, -1, kernel)
-    return frame
+    processed_frame = copy.deepcopy(frame)
+    processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2GRAY)
+    processed_frame = cv2.normalize(processed_frame, processed_frame, 0, 255, cv2.NORM_MINMAX)
+    processed_frame = cv2.GaussianBlur(processed_frame, [3, 3], sigmaX=0.1, sigmaY=0.1)
+    processed_frame = cv2.medianBlur(processed_frame, 3)
+    processed_frame = np.round(processed_frame * (QUANTIZATION_LEVELS / 255)) * (255 / QUANTIZATION_LEVELS)
+    processed_frame = np.uint8(np.round(processed_frame))
+    return processed_frame
 
 
 def draw_tag_axis(frame, camera_oriented_axis_mat, projected_points):
@@ -105,8 +108,10 @@ def draw_tag_axis(frame, camera_oriented_axis_mat, projected_points):
              (0, 0, 255), 5)
 
 
-def estimate_confidence(xyz, abs_distance, delta_time):
-    return 1 / (abs_distance + (SPEED_WEIGHT * (np.linalg.norm(last_pos_estimate - xyz)/delta_time) * int(last_is_accurate)))
+def estimate_confidence(xyz, abs_distance, rotation, delta_time):
+    return 1 / (abs_distance +
+                (SPEED_WEIGHT * (np.linalg.norm(last_pos_estimate - xyz) / delta_time) * int(last_is_accurate)) +
+                (ROT_WEIGHT * rotation[2]))
 
 
 def submit_final_estimation(xyz: np.ndarray, rotation: list):
@@ -120,8 +125,8 @@ def refine_estimation(pose_estimates, rot_estimates, estimation_confidences, del
     # this part refines estimation
 
     conf = 0
-    cam_xyz = np.array([0.0, 0.0, 0.0])
-    rotation = np.array([0.0, 0.0, 0.0])
+    cam_xyz = last_pos_estimate
+    rotation = last_rot_estimate
     for i in range(len(pose_estimates)):
         if estimation_confidences[i] > conf:
             cam_xyz = pose_estimates[i]
@@ -144,13 +149,12 @@ def refine_estimation(pose_estimates, rot_estimates, estimation_confidences, del
     return cam_xyz, rotation
 
 
-
 def main():
     global last_is_accurate, last_time
     cam.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
     cam.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
     # cam.set(cv2.CAP_PROP_FPS, 30)
-    cam.set(cv2.CAP_PROP_EXPOSURE, -7)
+    cam.set(cv2.CAP_PROP_EXPOSURE, -8)
 
     cv2.namedWindow("Display", cv2.WINDOW_AUTOSIZE)
 
@@ -169,11 +173,13 @@ def main():
             x, y, w, h = roi
             frame = dst[y:y + h, x:x + w]
 
-            denoise_frame(frame)
+            processed_frame = denoise_frame(frame)
+            # TODO: delete this later as this is for debugging
+            cv2.imshow("debug", processed_frame)
 
             delta_time = cur_time - last_time
 
-            proj_squares, ids = detect_april_tags(frame)
+            proj_squares, ids = detect_april_tags(processed_frame)
             draw(frame, proj_squares, ids)
             pose_estimates = []
             rot_estimates = []
@@ -199,12 +205,13 @@ def main():
                     # this part here does some epic pose estimation refinement
                     pose_estimates.append(cam_xyz)
                     rot_estimates.append(np.array(rotation))
-                    estimation_confidences.append(estimate_confidence(cam_xyz, abs_distance, delta_time))
+                    estimation_confidences.append(estimate_confidence(cam_xyz, abs_distance, rotation, delta_time))
 
                     # draw everything on the frame
                     draw_tag_axis(frame, camera_oriented_axis_mat, projected_points)
                 if len(pose_estimates) > 0:
-                    cam_xyz, rotation = refine_estimation(pose_estimates, rot_estimates, estimation_confidences, delta_time)
+                    cam_xyz, rotation = refine_estimation(pose_estimates, rot_estimates, estimation_confidences,
+                                                          delta_time)
                     print(cam_xyz)
                     if last_is_accurate:
                         submit_final_estimation(cam_xyz, rotation)

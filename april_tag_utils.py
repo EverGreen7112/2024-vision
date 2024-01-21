@@ -6,17 +6,15 @@ import cv2
 
 def detect_april_tags(image: np.ndarray) -> tuple[list[list[list[int]]], list[int]]:
     """
-    :param image: the image where we want to detect
+    :param image: the image where we want to detect (gray and denoised)
     :return: an array of the detected april tags and an array of their id's
     """
-    processed_frame = copy.deepcopy(image)
-    processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2GRAY)
     # NOTE: ori and itay you can cry me a river about the apriltag format not being a constant / parameter
     cv2.aruco_dict = cv2.aruco.DICT_APRILTAG_36H11
 
     parameters = cv2.aruco.DetectorParameters()
     detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco_dict), parameters)
-    proj_squares, ids, rejected_img_points = detector.detectMarkers(processed_frame)
+    proj_squares, ids, rejected_img_points = detector.detectMarkers(image)
 
     # this part is because for some reason if the function doesnt detect anything it doesnt simply return 2 empty lists
     if len(proj_squares) == 0:
@@ -148,18 +146,9 @@ def extrinsic_matrix_to_rotation(extrinsic_matrix: np.ndarray) -> list[float]:
     :param extrinsic_matrix: 4*4 extrinsic camera matrix
     :return: the rotation around each axis
     """
-    sy = math.sqrt(extrinsic_matrix[0, 0] * extrinsic_matrix[0, 0] + extrinsic_matrix[1, 0] * extrinsic_matrix[1, 0])
-
-    singular = sy < 1e-6
-
-    if not singular:
-        x = math.atan2(extrinsic_matrix[2, 1], extrinsic_matrix[2, 2])
-        y = math.atan2(-extrinsic_matrix[2, 0], sy)
-        z = math.atan2(extrinsic_matrix[1, 0], extrinsic_matrix[0, 0])
-    else:
-        x = math.atan2(-extrinsic_matrix[1, 2], extrinsic_matrix[1, 1])
-        y = math.atan2(-extrinsic_matrix[2, 0], sy)
-        z = 0
+    x = math.atan2(extrinsic_matrix[2, 1], extrinsic_matrix[2, 2])
+    y = math.atan2(-extrinsic_matrix[2, 0], math.sqrt(extrinsic_matrix[2, 1]**2 + extrinsic_matrix[2, 2]**2))
+    z = math.atan2(extrinsic_matrix[1, 0], extrinsic_matrix[0, 0])
 
     return [x, y, z]
 

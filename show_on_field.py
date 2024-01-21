@@ -7,7 +7,7 @@ import copy
 # TODO: update to use this seasons field
 METER_TO_PIXELS_X = 164.78798618850138
 METER_TO_PIXELS_Y = 164.009249323681
-UNIT = 100
+UNIT = 71.12
 SHAPE = [[UNIT, UNIT],
          [UNIT, -UNIT],
          [-UNIT, -UNIT],
@@ -30,7 +30,11 @@ def show_on_field():
                   v[0] * math.sin(rotation) + v[1] * math.cos(rotation) + xyz[2] * METER_TO_PIXELS_Y + half_height] for v
                  in SHAPE]
         try:
-            for i in range(len(shape)):
+            v1 = shape[3]
+            v2 = shape[0]
+            cv2.line(frame, (int(v1[0]), int(v1[1])),
+                     (int(v2[0]), int(v2[1])), (255, 0, 0), 10)
+            for i in range(len(shape)-1):
                 v1 = shape[i]
                 v2 = shape[(i + 1) % len(shape)]
                 cv2.line(frame, (int(v1[0]), int(v1[1])),

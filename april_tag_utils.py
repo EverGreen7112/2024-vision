@@ -147,7 +147,8 @@ def extrinsic_matrix_to_rotation(extrinsic_matrix: np.ndarray) -> list[float]:
     :return: the rotation around each axis
     """
     x = math.atan2(extrinsic_matrix[2, 1], extrinsic_matrix[2, 2])
-    y = math.atan2(-extrinsic_matrix[2, 0], math.sqrt(extrinsic_matrix[2, 1]**2 + extrinsic_matrix[2, 2]**2))
+    y = math.atan2(-extrinsic_matrix[2, 0],
+                np.sign(extrinsic_matrix[2, 1]*extrinsic_matrix[2, 2])*math.sqrt(extrinsic_matrix[2, 1]**2 + extrinsic_matrix[2, 2]**2))
     z = math.atan2(extrinsic_matrix[1, 0], extrinsic_matrix[0, 0])
 
     return [x, y, z]

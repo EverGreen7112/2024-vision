@@ -2,15 +2,15 @@ import cv2 as cv
 import numpy as np
 
 #note values
-NOTE_RADIUS = 0.1778 # in meter
+NOTE_RADIUS = 0.1778 # in meters
 
 #camera values
 CAMERA_PORT = 0
-FOCAL_LENGTH = 2 / (60.59 * NOTE_RADIUS) # distance / (pixel radius * radius)
+FOCAL_LENGTH = (2 * 60.59) / NOTE_RADIUS # distance * pixel radius / obj radius
 
 #threshold values
-MIN_THRESHOLD = (0, 100, 190) #hsv min threshold
-MAX_THRESHOLD = (90, 260, 350) #hsv max threshold
+MIN_THRESHOLD = (0, 100, 150) #hsv min threshold
+MAX_THRESHOLD = (90, 300, 360) #hsv max threshold
 
 #pipeline values
 ERODE_ITERATIONS = 1
@@ -53,14 +53,14 @@ def main():
         final_frame = cv.inRange(transformed_frame, (0.5), (1)) 
         
         #detect contours
-        cnts, hir = cv.findContours(final_frame, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+        contours, hir = cv.findContours(final_frame, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
         
         #get bouding circle
-        if len(cnts) != 0:
+        if len(contours) != 0:
           #find contour with largest area
           area = 0
-          c = cnts[0]
-          for cnt in cnts:
+          cnt = contours[0]
+          for cnt in contours:
               if area < cv.contourArea(cnt):
                   c = cnt
                   area = cv.contourArea(cnt)
@@ -72,7 +72,7 @@ def main():
           frame = cv.circle(frame, (int(center[0]), int(center[1])), int(radius), (255,0,0))
           
           #calculate distance 
-          distance = radius * FOCAL_LENGTH 
+          distance = NOTE_RADIUS * FOCAL_LENGTH / radius
           
           print(distance)
         

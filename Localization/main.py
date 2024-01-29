@@ -83,7 +83,7 @@ def draw_tag_axis(frame, camera_oriented_axis_mat, projected_points):
 def estimate_confidence(xyz, abs_distance, rotation, delta_time, tag_id):
     return 1 / (abs_distance +
                 (SPEED_WEIGHT * (np.linalg.norm(last_pos_estimate - xyz) / delta_time))
-                + ((abs(settings.TAGS[tag_id].yaw + rotation[1]) % math.pi) * ROT_WEIGHT))
+                + ((abs(settings.TAGS[tag_id].yaw + rotation[0]) % math.pi) * ROT_WEIGHT))
 
 
 def estimate_confidence_by_avg(conf: float, count: int, avg: np.ndarray, xyz: np.ndarray):
@@ -95,13 +95,13 @@ def submit_final_estimation(xyz: np.ndarray, rotation: list):
     xyz[2] *= -1
     xyz[2] += tag.FIELD_HEIGHT
     show_on_field.xyz = xyz
-    show_on_field.rotation = math.pi - rotation[1]
+    show_on_field.rotation = math.pi + rotation[0]
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.sendto(struct.pack('ffff', xyz[0],
                                 xyz[1],
                                 xyz[2],
-                                math.degrees(rotation[1])),
+                                math.degrees(rotation[0] + math.pi)),
                     ("255.255.255.255", PORT))
 
 
@@ -252,5 +252,5 @@ def test_with_cam():
 
 
 if __name__ == '__main__':
-    # test_with_cam()
-    test_with_sample_images()
+    test_with_cam()
+    # test_with_sample_images()

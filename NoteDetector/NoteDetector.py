@@ -1,16 +1,19 @@
 import cv2 as cv
 import numpy as np
+import math 
 
 #note values
 NOTE_RADIUS = 0.1778 # in meters
 
 #camera values
 CAMERA_PORT = 0
+HORIZONTAL_FOV = 61.37
 FOCAL_LENGTH = (2 * 60.59) / NOTE_RADIUS # distance * pixel radius / obj radius
+DISTANCE_OFFSET = -0.15
 
 #threshold values
-MIN_THRESHOLD = (0, 100, 150) #hsv min threshold
-MAX_THRESHOLD = (90, 300, 360) #hsv max threshold
+MIN_THRESHOLD = (0, 150, 150) #hsv min threshold
+MAX_THRESHOLD = (50, 300, 300) #hsv max threshold
 
 #pipeline values
 ERODE_ITERATIONS = 1
@@ -72,10 +75,19 @@ def main():
           frame = cv.circle(frame, (int(center[0]), int(center[1])), int(radius), (255,0,0))
           
           #calculate distance 
-          distance = NOTE_RADIUS * FOCAL_LENGTH / radius
-          
-          print(distance)
-        
+          distance = (NOTE_RADIUS * FOCAL_LENGTH / radius) + DISTANCE_OFFSET
+  
+          #get resolutin of frame
+          resX = frame.shape[0]     
+
+          #calculate yaw angle from note
+          yaw = (HORIZONTAL_FOV / resX) * (center[0] - resX / 2)       
+
+          #get cartesian values of vector   
+          x = math.cos(math.radians(yaw)) * distance
+          y = math.sin(math.radians(yaw)) * distance
+
+          print ('dis:', distance, 'yaw:', yaw)
         #Display frame
         cv.imshow('detected pixels', final_frame) 
         cv.imshow('transformed', transformed_frame)

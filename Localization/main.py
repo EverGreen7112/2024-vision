@@ -41,10 +41,10 @@ last_is_accurate = False  # tells you if the last estimation is accurate
 # these values are for refining the estimation
 MAX_VEL = 2  # maximum velocity of the robot, if passed we can assume there was a problem with the pose estimation
 MAX_ACCEL = 15000  # maximum acceleration of the robot, if passed we can assume there was a problem with the pose
-MIN_CONFIDENCE = 0.13
-SPEED_WEIGHT = 6  # how much weight we give speed in confidence estimation
+MIN_CONFIDENCE = 0.11
+SPEED_WEIGHT = 2  # how much weight we give speed in confidence estimation
 ROT_WEIGHT = 1.1  # how much weight we give the rotation in confidence estimation
-DISTANCE_FROM_AVG_WEIGHT = 3  # how much weight do we give to distance from the average in confidence estimation
+DISTANCE_FROM_AVG_WEIGHT = 6  # how much weight do we give to distance from the average in confidence estimation
 QUANTIZATION_LEVELS = 12  # how many levels do we want to divide the image to
 
 
@@ -83,23 +83,25 @@ def draw_tag_axis(frame, camera_oriented_axis_mat, projected_points):
 def estimate_confidence(xyz, abs_distance, rotation, delta_time, tag_id):
     return 1 / (abs_distance +
                 (SPEED_WEIGHT * (np.linalg.norm(last_pos_estimate - xyz) / delta_time))
-                + ((abs(settings.TAGS[tag_id].yaw + rotation[1]) % math.pi) * ROT_WEIGHT))
+                + ((abs(settings.TAGS[tag_id].yaw + rotation[0]) % math.pi) * ROT_WEIGHT))
 
 
-def estimate_confidence_by_avg(conf: float, avg: np.ndarray, xyz: np.ndarray):
+def estimate_confidence_by_avg(conf: float, count: int, avg: np.ndarray, xyz: np.ndarray):
     # NOTE: takes confidence to in case we'd want to expand the calculation
-    return 1 / ((1 / conf) + (DISTANCE_FROM_AVG_WEIGHT * np.linalg.norm(avg - xyz)))
+    return count / ((1 / conf) + (DISTANCE_FROM_AVG_WEIGHT * np.linalg.norm(avg - xyz)))
 
 
 def submit_final_estimation(xyz: np.ndarray, rotation: list):
-    # TODO: add the part that sends the data to the robot here
+    xyz[2] *= -1
+    xyz[2] += tag.FIELD_HEIGHT
     show_on_field.xyz = xyz
-    show_on_field.rotation = rotation[1]
+    show_on_field.rotation = math.pi + rotation[0]
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.sendto(struct.pack('fff', xyz[0],
+        sock.sendto(struct.pack('ffff', xyz[0],
                                 xyz[1],
-                                xyz[2]),
+                                xyz[2],
+                                math.degrees(rotation[0] + math.pi)),
                     ("255.255.255.255", PORT))
 
 
@@ -113,7 +115,7 @@ def refine_estimation(pose_estimates, rot_estimates, estimation_confidences, del
     avg_xyz /= (count+int(last_is_accurate))
 
     for i in range(count):
-        estimation_confidences[i] = estimate_confidence_by_avg(estimation_confidences[i], avg_xyz, pose_estimates[i])
+        estimation_confidences[i] = estimate_confidence_by_avg(estimation_confidences[i], count, avg_xyz, pose_estimates[i])
 
     conf = 0
     cam_xyz = last_pos_estimate
@@ -224,7 +226,6 @@ def test_with_sample_images():  # sample images were also taken with lifecam
     cv2.destroyAllWindows()
 
 
-
 def test_with_cam():
     cam.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
     cam.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
@@ -251,5 +252,5 @@ def test_with_cam():
 
 
 if __name__ == '__main__':
-    # test_with_cam()
-    test_with_sample_images()
+    test_with_cam()
+    # test_with_sample_images()

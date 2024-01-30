@@ -13,6 +13,12 @@ def detect_april_tags(image: np.ndarray) -> tuple[list[list[list[int]]], list[in
     cv2.aruco_dict = cv2.aruco.DICT_APRILTAG_36H11
 
     parameters = cv2.aruco.DetectorParameters()
+    parameters.aprilTagDeglitch = 30
+    parameters.aprilTagMaxNmaxima = 20
+    parameters.cornerRefinementMaxIterations = 50
+    parameters.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_CONTOUR
+    parameters.perspectiveRemovePixelPerCell = 8
+    parameters.minDistanceToBorder = 0
     detector = cv2.aruco.ArucoDetector(cv2.aruco.getPredefinedDictionary(cv2.aruco_dict), parameters)
     proj_squares, ids, rejected_img_points = detector.detectMarkers(image)
 
@@ -114,7 +120,8 @@ def tag_projected_points_to_transform(tag: list[list[int or float]],
                                                       [[focal_length_x, 0, width / 2],
                                                        [0, focal_length_y, height / 2],
                                                        [0, 0, 1]]),
-                                                  distCoeffs=None)
+                                                  distCoeffs=None,
+                                                  flags=cv2.SOLVEPNP_IPPE)
     mat, _ = cv2.Rodrigues(rotation)  # NOTE: ori and itay, this function is not called rodrigues because its a funny
     # name for a function (even though it is) but because its based on the rodrigues transform for rotation
 
@@ -146,12 +153,18 @@ def extrinsic_matrix_to_rotation(extrinsic_matrix: np.ndarray) -> list[float]:
     :param extrinsic_matrix: 4*4 extrinsic camera matrix
     :return: the rotation around each axis
     """
-    x = math.atan2(extrinsic_matrix[2, 1], extrinsic_matrix[2, 2])
-    y = math.atan2(-extrinsic_matrix[2, 0],
-                   (int(np.sign(extrinsic_matrix[2, 1])) | int(np.sign(extrinsic_matrix[2, 2])))*math.sqrt(extrinsic_matrix[2, 1]**2 + extrinsic_matrix[2, 2]**2))
-    z = math.atan2(extrinsic_matrix[1, 0], extrinsic_matrix[0, 0])
+    z = np.array([0, 0, 1])
+    rotation_matrix = np.delete(np.delete(extrinsic_matrix, 3, 0), 3, 1)
+    r_z = rotation_matrix @ z
+    yaw = np.arccos(np.dot(np.array([z[0], z[2]]), np.array([r_z[0], r_z[2]]))) * np.sign(r_z[0])
 
-    return [x, y, z]
+    pitch = math.atan2(-extrinsic_matrix[2, 0],
+                   (int(np.sign(extrinsic_matrix[1, 0])) | int(np.sign(extrinsic_matrix[0, 0])))
+                       * math.sqrt(extrinsic_matrix[1, 0]**2 + extrinsic_matrix[0, 0]**2))
+    # yaw = math.atan2(extrinsic_matrix[2, 1], extrinsic_matrix[2, 2])
+    roll = math.atan2(extrinsic_matrix[1, 0], extrinsic_matrix[0, 0])
+
+    return [yaw, pitch, roll]
 
 
 def draw(frame: np.ndarray, proj_tags: list[list[list[int or float]]], ids: list[int]):

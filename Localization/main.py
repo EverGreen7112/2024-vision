@@ -35,28 +35,28 @@ mapx, mapy = cv2.initUndistortRectifyMap(np.array([[1.15929436e+03, 0, 6.4321388
 # these values are here so we could check our momentary changes and see if they make any sense
 last_pos_estimate = np.array([0.0, 0.0, 0.0])
 last_rot_estimate = np.array([0.0, 0.0, 0.0])
-last_time = 0
+last_time = 0  # the time of the last pos estimation, NOT necessarily the time of the last frame
 last_is_accurate = False  # tells you if the last estimation is accurate
 
 # these values are for refining the estimation
-MAX_VEL = 2  # maximum velocity of the robot, if passed we can assume there was a problem with the pose estimation
+MAX_VEL = 4  # maximum velocity of the robot, if passed we can assume there was a problem with the pose estimation
 MAX_ACCEL = 15000  # maximum acceleration of the robot, if passed we can assume there was a problem with the pose
 MIN_CONFIDENCE = 0.11
 SPEED_WEIGHT = 2  # how much weight we give speed in confidence estimation
 ROT_WEIGHT = 1.1  # how much weight we give the rotation in confidence estimation
 DISTANCE_FROM_AVG_WEIGHT = 6  # how much weight do we give to distance from the average in confidence estimation
-QUANTIZATION_LEVELS = 12  # how many levels do we want to divide the image to
+QUANTIZATION_LEVELS = 64  # how many levels do we want to divide the image to
 
 
 def denoise_frame(frame):
     processed_frame = copy.deepcopy(frame)
     processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2GRAY)
     processed_frame = cv2.normalize(processed_frame, processed_frame, 0, 255, cv2.NORM_MINMAX)
-    processed_frame = cv2.GaussianBlur(processed_frame, [3, 3], sigmaX=0.1, sigmaY=0.1)
     processed_frame = cv2.medianBlur(processed_frame, 3)
+    processed_frame = cv2.GaussianBlur(processed_frame, [3, 3], sigmaX=0.1, sigmaY=0.1)
     processed_frame = np.round(processed_frame * (QUANTIZATION_LEVELS / 255)) * (255 / QUANTIZATION_LEVELS)
     processed_frame = np.uint8(np.round(processed_frame))
-    kernel = np.array([[0, -1, 0],
+    kernel = 1.35*np.array([[0, -1, 0],
                        [-1, 5, -1],
                        [0, -1, 0]])
     processed_frame = cv2.filter2D(processed_frame, -1, kernel)
@@ -92,9 +92,7 @@ def estimate_confidence_by_avg(conf: float, count: int, avg: np.ndarray, xyz: np
 
 
 def submit_final_estimation(xyz: np.ndarray, rotation: list):
-    xyz[2] *= -1
-    xyz[2] += tag.FIELD_HEIGHT
-    show_on_field.xyz = xyz
+    show_on_field.xyz = [xyz[0], xyz[1], tag.FIELD_HEIGHT-xyz[2]]
     show_on_field.rotation = math.pi + rotation[0]
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -154,14 +152,13 @@ def runPipeline(image, llrobot):  # this function is in a format for putting it 
     # TODO: delete this later as this is for debugging
     cv2.imshow("debug", processed_frame)
 
-    delta_time = cur_time - last_time
+    delta_time = cur_time - last_time  # time between the last estimation and this one, NOT the time between 2 frames
 
     proj_squares, ids = detect_april_tags(processed_frame)
-    # draw(frame, proj_squares, ids)
+    draw(frame, proj_squares, ids)
     pose_estimates = []
     rot_estimates = []
     estimation_confidences = []
-
     for i in range(len(ids)):
         tag_id = ids[i]
         if tag_id in settings.TAGS_INVERSE.keys():  # only process tags we know
@@ -191,6 +188,7 @@ def runPipeline(image, llrobot):  # this function is in a format for putting it 
                         cv2.FONT_HERSHEY_SIMPLEX, 1, [0, 255, 0], 3)
 
     if len(pose_estimates) > 0:
+        last_time = cur_time
         cam_xyz, rotation = refine_estimation(pose_estimates, rot_estimates, estimation_confidences,
                                               delta_time)
         if last_is_accurate:
@@ -198,7 +196,7 @@ def runPipeline(image, llrobot):  # this function is in a format for putting it 
     else:
         cam_xyz = last_pos_estimate
         last_is_accurate = False
-    last_time = cur_time
+
     return [], frame, cam_xyz
 
 
@@ -212,6 +210,10 @@ def test_with_sample_images():  # sample images were also taken with lifecam
     show_on_field.thread.start()
 
     for img in images:
+        # dst = cv2.remap(img, mapx, mapy, cv2.INTER_LINEAR)
+        # # crop the image
+        # x, y, w, h = roi
+        # img = dst[y:y + h, x:x + w]
         while not ((cv2.waitKey(1) & 0xFF) == ord(" ")):
             # Generate random Gaussian noise
             mean = (0, 0, 0)
@@ -252,5 +254,5 @@ def test_with_cam():
 
 
 if __name__ == '__main__':
-    test_with_cam()
-    # test_with_sample_images()
+    # test_with_cam()
+    test_with_sample_images()

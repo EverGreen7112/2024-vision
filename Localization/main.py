@@ -98,7 +98,7 @@ def submit_final_estimation(xyz: np.ndarray, rotation: list):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         sock.sendto(struct.pack('ffff', xyz[0],
                                 xyz[1],
-                                xyz[2],
+                                tag.FIELD_HEIGHT - xyz[2],
                                 math.degrees(rotation[0] + math.pi)),
                     ("255.255.255.255", PORT))
 

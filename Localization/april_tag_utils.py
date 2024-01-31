@@ -13,9 +13,9 @@ def detect_april_tags(image: np.ndarray) -> tuple[list[list[list[int]]], list[in
     cv2.aruco_dict = cv2.aruco.DICT_APRILTAG_36H11
 
     parameters = cv2.aruco.DetectorParameters()
-    parameters.aprilTagDeglitch = 30
+    parameters.aprilTagDeglitch = 1
     parameters.aprilTagMaxNmaxima = 20
-    parameters.cornerRefinementMaxIterations = 50
+    parameters.cornerRefinementMaxIterations = 30
     parameters.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_CONTOUR
     parameters.perspectiveRemovePixelPerCell = 8
     parameters.minDistanceToBorder = 0

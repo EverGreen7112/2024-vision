@@ -49,17 +49,18 @@ QUANTIZATION_LEVELS = 64  # how many levels do we want to divide the image to
 
 
 def denoise_frame(frame):
+
     processed_frame = copy.deepcopy(frame)
     processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2GRAY)
     processed_frame = cv2.normalize(processed_frame, processed_frame, 0, 255, cv2.NORM_MINMAX)
     processed_frame = cv2.medianBlur(processed_frame, 3)
     processed_frame = cv2.GaussianBlur(processed_frame, [3, 3], sigmaX=0.1, sigmaY=0.1)
-    processed_frame = np.round(processed_frame * (QUANTIZATION_LEVELS / 255)) * (255 / QUANTIZATION_LEVELS)
-    processed_frame = np.uint8(np.round(processed_frame))
-    kernel = 1.35*np.array([[0, -1, 0],
-                       [-1, 5, -1],
-                       [0, -1, 0]])
-    processed_frame = cv2.filter2D(processed_frame, -1, kernel)
+    # processed_frame = np.round(processed_frame * (QUANTIZATION_LEVELS / 255)) * (255 / QUANTIZATION_LEVELS)
+    # processed_frame = np.uint8(np.round(processed_frame))
+    # kernel = 1.35*np.array([[0, -1, 0],
+    #                    [-1, 5, -1],
+    #                    [0, -1, 0]])
+    # processed_frame = cv2.filter2D(processed_frame, -1, kernel)
 
     return processed_frame
 
@@ -129,7 +130,6 @@ def refine_estimation(pose_estimates, rot_estimates, estimation_confidences, del
     delta_x = (cam_xyz - last_pos_estimate) * int(last_is_accurate)
     velocity = delta_x * (1 / delta_time)
 
-    # print(np.linalg.norm(velocity))
     if (conf < MIN_CONFIDENCE) or (np.linalg.norm(velocity) > MAX_VEL):
         if last_is_accurate:
             cam_xyz = last_pos_estimate
@@ -153,7 +153,6 @@ def runPipeline(image, llrobot):  # this function is in a format for putting it 
     cv2.imshow("debug", processed_frame)
 
     delta_time = cur_time - last_time  # time between the last estimation and this one, NOT the time between 2 frames
-
     proj_squares, ids = detect_april_tags(processed_frame)
     draw(frame, proj_squares, ids)
     pose_estimates = []
@@ -196,7 +195,6 @@ def runPipeline(image, llrobot):  # this function is in a format for putting it 
     else:
         cam_xyz = last_pos_estimate
         last_is_accurate = False
-
     return [], frame, cam_xyz
 
 
@@ -215,6 +213,7 @@ def test_with_sample_images():  # sample images were also taken with lifecam
         # x, y, w, h = roi
         # img = dst[y:y + h, x:x + w]
         while not ((cv2.waitKey(1) & 0xFF) == ord(" ")):
+
             # Generate random Gaussian noise
             mean = (0, 0, 0)
             stddev = (25, 25, 25)
@@ -232,7 +231,7 @@ def test_with_cam():
     cam.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
     cam.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
     # cam.set(cv2.CAP_PROP_FPS, 30)
-    cam.set(cv2.CAP_PROP_EXPOSURE, -7)
+    cam.set(cv2.CAP_PROP_EXPOSURE, -8)
 
     cv2.namedWindow("Display", cv2.WINDOW_AUTOSIZE)
 
@@ -242,6 +241,7 @@ def test_with_cam():
     # you are welcome to cry about it
 
     while True:
+
         ok, frame = cam.read()
         if ok:
             dst = cv2.remap(frame, mapx, mapy, cv2.INTER_LINEAR)
@@ -253,6 +253,7 @@ def test_with_cam():
             cv2.waitKey(1)
 
 
+
 if __name__ == '__main__':
-    # test_with_cam()
-    test_with_sample_images()
+    test_with_cam()
+    # test_with_sample_images()

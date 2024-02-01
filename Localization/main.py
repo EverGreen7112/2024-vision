@@ -11,26 +11,31 @@ import show_on_field
 import tag
 from april_tag_utils import *
 
-cam = cv2.VideoCapture(0)
-WIDTH = 1280
-HEIGHT = 720
+cam = cv2.VideoCapture(0, cv2.CAP_ANY)
+LIFE_CAM_WIDTH = 1280
+LIFE_CAM_HEIGHT = 720
+
+BRIO_WIDTH = 1920
+BRIO_HEIGHT = 1080
 
 # NOTE: ori and itay, these are not magic numbers, the weird number in the tan function is simply the cameras FOV
 # divided by 2 in radians
-F_LENGTH_X_LIFECAM = (1 / (math.tan(0.5355780593748425) * 2)) * WIDTH
-F_LENGTH_Y_LIFECAM = (1 / (math.tan(0.3221767906849529) * 2)) * HEIGHT
+F_LENGTH_X_BRIO = (1 / (math.tan(0.3841161543769188) * 2)) * LIFE_CAM_WIDTH
+F_LENGTH_Y_BRIO = (1 / (math.tan(0.24892437646661184) * 2)) * LIFE_CAM_HEIGHT
+F_LENGTH_X_LIFECAM = (1 / (math.tan(0.5355780593748425) * 2)) * LIFE_CAM_WIDTH
+F_LENGTH_Y_LIFECAM = (1 / (math.tan(0.3221767906849529) * 2)) * LIFE_CAM_HEIGHT
 lifecam_distortion_coefs = np.array([[1.01094557e-01, -8.10764739e-01, 3.23088490e-04, 4.97992890e-06, 1.48988740e+00]])
 PORT = 5800
 
 new_camera_mtx, roi = cv2.getOptimalNewCameraMatrix(
     np.array([[1.15929436e+03, 0, 6.43213888e+02],
               [0, 1.08801044e+03, 3.71547461e+02],
-              [0, 0, 1]]), lifecam_distortion_coefs, (WIDTH, HEIGHT), 1, (WIDTH, HEIGHT))
+              [0, 0, 1]]), lifecam_distortion_coefs, (LIFE_CAM_WIDTH, LIFE_CAM_HEIGHT), 1, (LIFE_CAM_WIDTH, LIFE_CAM_HEIGHT))
 # undistort
 mapx, mapy = cv2.initUndistortRectifyMap(np.array([[1.15929436e+03, 0, 6.43213888e+02],
                                                    [0, 1.08801044e+03, 3.71547461e+02],
                                                    [0, 0, 1]]), lifecam_distortion_coefs, None, new_camera_mtx,
-                                         (WIDTH, HEIGHT), 5)
+                                         (LIFE_CAM_WIDTH, LIFE_CAM_HEIGHT), 5)
 
 # these values are here so we could check our momentary changes and see if they make any sense
 last_pos_estimate = np.array([0.0, 0.0, 0.0])
@@ -67,11 +72,11 @@ def denoise_frame(frame):
 
 def draw_tag_axis(frame, camera_oriented_axis_mat, projected_points):
     projected_z = project_point(camera_oriented_axis_mat[:3, 2], F_LENGTH_X_LIFECAM,
-                                F_LENGTH_Y_LIFECAM, WIDTH, HEIGHT)
+                                F_LENGTH_Y_LIFECAM, LIFE_CAM_WIDTH, LIFE_CAM_HEIGHT)
     projected_y = project_point(camera_oriented_axis_mat[:3, 1], F_LENGTH_X_LIFECAM,
-                                F_LENGTH_Y_LIFECAM, WIDTH, HEIGHT)
+                                F_LENGTH_Y_LIFECAM, LIFE_CAM_WIDTH, LIFE_CAM_HEIGHT)
     projected_x = project_point(camera_oriented_axis_mat[:3, 0], F_LENGTH_X_LIFECAM,
-                                F_LENGTH_Y_LIFECAM, WIDTH, HEIGHT)
+                                F_LENGTH_Y_LIFECAM, LIFE_CAM_WIDTH, LIFE_CAM_HEIGHT)
     center = find_projected_tag_center(projected_points)
     cv2.line(frame, (int(projected_x[0]), int(projected_x[1])), (int(center[0]), int(center[1])),
              (255, 0, 0), 5)
@@ -145,6 +150,10 @@ def refine_estimation(pose_estimates, rot_estimates, estimation_confidences, del
 
 def runPipeline(image, llrobot):  # this function is in a format for putting it on the limelight
     global last_is_accurate, last_time
+    frame_width = BRIO_WIDTH
+    frame_height = BRIO_HEIGHT
+    focal_length_x = F_LENGTH_X_LIFECAM
+    focal_length_y = F_LENGTH_Y_LIFECAM
     cur_time = time.time()
     frame = image
     processed_frame = denoise_frame(frame)
@@ -165,11 +174,11 @@ def runPipeline(image, llrobot):  # this function is in a format for putting it 
             # return tag to origin
             field_oriented_inv_axis_matrix = settings.TAGS_INVERSE[tag_id]
             tag_transformation_matrix, abs_distance = tag_projected_points_to_transform(tag=projected_points,
-                                                                                        width=WIDTH,
-                                                                                        height=HEIGHT,
+                                                                                        width=frame_width,
+                                                                                        height=frame_height,
                                                                                         tag_shape=tag.BASIS_TAG_COORDS_MATRIX,
-                                                                                        focal_length_x=F_LENGTH_X_LIFECAM,
-                                                                                        focal_length_y=F_LENGTH_Y_LIFECAM)
+                                                                                        focal_length_x=focal_length_x,
+                                                                                        focal_length_y=focal_length_y)
             camera_oriented_axis_mat = tag_transformation_matrix @ tag.BASIS_AXIS_MATRIX
             extrinsic_matrix = camera_oriented_axis_mat @ field_oriented_inv_axis_matrix
             cam_xyz = extrinsic_matrix_to_camera_position(extrinsic_matrix)
@@ -183,7 +192,7 @@ def runPipeline(image, llrobot):  # this function is in a format for putting it 
 
             # draw everything on the frame
             draw_tag_axis(frame, camera_oriented_axis_mat, projected_points)
-            cv2.putText(frame, str(conf), (int(projected_points[2][0]) + 10, int(projected_points[2][1]) + 10),
+            cv2.putText(frame, str(math.degrees(rotation[0] + math.pi)), (int(projected_points[2][0]) - 20, int(projected_points[2][1]) - 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, [0, 255, 0], 3)
 
     if len(pose_estimates) > 0:
@@ -228,8 +237,9 @@ def test_with_sample_images():  # sample images were also taken with lifecam
 
 
 def test_with_cam():
-    cam.set(cv2.CAP_PROP_FRAME_WIDTH, WIDTH)
-    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
+
+    cam.set(cv2.CAP_PROP_FRAME_WIDTH, LIFE_CAM_WIDTH)
+    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, LIFE_CAM_HEIGHT)
     # cam.set(cv2.CAP_PROP_FPS, 30)
     cam.set(cv2.CAP_PROP_EXPOSURE, -8)
 
@@ -241,17 +251,17 @@ def test_with_cam():
     # you are welcome to cry about it
 
     while True:
-
+        s = time.time()
         ok, frame = cam.read()
         if ok:
-            dst = cv2.remap(frame, mapx, mapy, cv2.INTER_LINEAR)
-            # crop the image
-            x, y, w, h = roi
-            frame = dst[y:y + h, x:x + w]
+            # dst = cv2.remap(frame, mapx, mapy, cv2.INTER_LINEAR)
+            # # crop the image
+            # x, y, w, h = roi
+            # frame = dst[y:y + h, x:x + w]
             _, frame, _ = runPipeline(frame, None)
             cv2.imshow('Display', frame)
             cv2.waitKey(1)
-
+        print((time.time() - s))
 
 
 if __name__ == '__main__':

@@ -11,9 +11,10 @@ import show_on_field
 import tag
 from april_tag_utils import *
 
-cam = cv2.VideoCapture(0, cv2.CAP_ANY)
 LIFE_CAM_WIDTH = 1280
 LIFE_CAM_HEIGHT = 720
+cam = cv2.VideoCapture(f"v4l2src device=/dev/video0 ! video/x-raw, width={LIFE_CAM_WIDTH}, height={LIFE_CAM_HEIGHT},"
+                       f"! videoconvert ! video/x-raw,format=BGR ! appsink")  # cv2.VideoCapture(0, cv2.CAP_ANY)
 
 BRIO_WIDTH = 1920
 BRIO_HEIGHT = 1080
@@ -30,7 +31,8 @@ PORT = 5800
 new_camera_mtx, roi = cv2.getOptimalNewCameraMatrix(
     np.array([[1.15929436e+03, 0, 6.43213888e+02],
               [0, 1.08801044e+03, 3.71547461e+02],
-              [0, 0, 1]]), lifecam_distortion_coefs, (LIFE_CAM_WIDTH, LIFE_CAM_HEIGHT), 1, (LIFE_CAM_WIDTH, LIFE_CAM_HEIGHT))
+              [0, 0, 1]]), lifecam_distortion_coefs, (LIFE_CAM_WIDTH, LIFE_CAM_HEIGHT), 1,
+    (LIFE_CAM_WIDTH, LIFE_CAM_HEIGHT))
 # undistort
 mapx, mapy = cv2.initUndistortRectifyMap(np.array([[1.15929436e+03, 0, 6.43213888e+02],
                                                    [0, 1.08801044e+03, 3.71547461e+02],
@@ -54,12 +56,11 @@ QUANTIZATION_LEVELS = 64  # how many levels do we want to divide the image to
 
 
 def denoise_frame(frame):
-
     processed_frame = copy.deepcopy(frame)
     processed_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2GRAY)
     processed_frame = cv2.normalize(processed_frame, processed_frame, 0, 255, cv2.NORM_MINMAX)
     processed_frame = cv2.medianBlur(processed_frame, 3)
-    processed_frame = cv2.GaussianBlur(processed_frame, [3, 3], sigmaX=0.1, sigmaY=0.1)
+    processed_frame = cv2.GaussianBlur(processed_frame, (3, 3), sigmaX=0.1, sigmaY=0.1)
     # processed_frame = np.round(processed_frame * (QUANTIZATION_LEVELS / 255)) * (255 / QUANTIZATION_LEVELS)
     # processed_frame = np.uint8(np.round(processed_frame))
     # kernel = 1.35*np.array([[0, -1, 0],
@@ -98,7 +99,7 @@ def estimate_confidence_by_avg(conf: float, count: int, avg: np.ndarray, xyz: np
 
 
 def submit_final_estimation(xyz: np.ndarray, rotation: list):
-    show_on_field.xyz = [xyz[0], xyz[1], tag.FIELD_HEIGHT-xyz[2]]
+    show_on_field.xyz = [xyz[0], xyz[1], tag.FIELD_HEIGHT - xyz[2]]
     show_on_field.rotation = math.pi + rotation[0]
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -116,10 +117,11 @@ def refine_estimation(pose_estimates, rot_estimates, estimation_confidences, del
     avg_xyz = last_pos_estimate * int(last_is_accurate)
     for p in pose_estimates:
         avg_xyz += p
-    avg_xyz /= (count+int(last_is_accurate))
+    avg_xyz /= (count + int(last_is_accurate))
 
     for i in range(count):
-        estimation_confidences[i] = estimate_confidence_by_avg(estimation_confidences[i], count, avg_xyz, pose_estimates[i])
+        estimation_confidences[i] = estimate_confidence_by_avg(estimation_confidences[i], count, avg_xyz,
+                                                               pose_estimates[i])
 
     conf = 0
     cam_xyz = last_pos_estimate
@@ -129,7 +131,6 @@ def refine_estimation(pose_estimates, rot_estimates, estimation_confidences, del
             cam_xyz = pose_estimates[i]
             rotation = rot_estimates[i]
             conf = estimation_confidences[i]
-
 
     # comparing to the last estimation
     delta_x = (cam_xyz - last_pos_estimate) * int(last_is_accurate)
@@ -148,18 +149,15 @@ def refine_estimation(pose_estimates, rot_estimates, estimation_confidences, del
     return cam_xyz, rotation
 
 
-def runPipeline(image, llrobot):  # this function is in a format for putting it on the limelight
+def process_frame(image):
     global last_is_accurate, last_time
-    frame_width = BRIO_WIDTH
-    frame_height = BRIO_HEIGHT
+    frame_width = LIFE_CAM_WIDTH
+    frame_height = LIFE_CAM_HEIGHT
     focal_length_x = F_LENGTH_X_LIFECAM
     focal_length_y = F_LENGTH_Y_LIFECAM
     cur_time = time.time()
     frame = image
     processed_frame = denoise_frame(frame)
-
-    # TODO: delete this later as this is for debugging
-    cv2.imshow("debug", processed_frame)
 
     delta_time = cur_time - last_time  # time between the last estimation and this one, NOT the time between 2 frames
     proj_squares, ids = detect_april_tags(processed_frame)
@@ -192,7 +190,8 @@ def runPipeline(image, llrobot):  # this function is in a format for putting it 
 
             # draw everything on the frame
             draw_tag_axis(frame, camera_oriented_axis_mat, projected_points)
-            cv2.putText(frame, str(math.degrees(rotation[0] + math.pi)), (int(projected_points[2][0]) - 20, int(projected_points[2][1]) - 20),
+            cv2.putText(frame, str(math.degrees(rotation[0] + math.pi)),
+                        (int(projected_points[2][0]) - 20, int(projected_points[2][1]) - 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, [0, 255, 0], 3)
 
     if len(pose_estimates) > 0:
@@ -204,7 +203,58 @@ def runPipeline(image, llrobot):  # this function is in a format for putting it 
     else:
         cam_xyz = last_pos_estimate
         last_is_accurate = False
-    return [], frame, cam_xyz
+    return frame, cam_xyz
+
+
+def process_frame_headless(image):
+    global last_is_accurate, last_time
+    frame_width = LIFE_CAM_WIDTH
+    frame_height = LIFE_CAM_HEIGHT
+    focal_length_x = F_LENGTH_X_LIFECAM
+    focal_length_y = F_LENGTH_Y_LIFECAM
+    cur_time = time.time()
+    frame = image
+    processed_frame = denoise_frame(frame)
+
+    delta_time = cur_time - last_time  # time between the last estimation and this one, NOT the time between 2 frames
+    proj_squares, ids = detect_april_tags(processed_frame)
+    # draw(frame, proj_squares, ids)
+    pose_estimates = []
+    rot_estimates = []
+    estimation_confidences = []
+    for i in range(len(ids)):
+        tag_id = ids[i]
+        if tag_id in settings.TAGS_INVERSE.keys():  # only process tags we know
+            projected_points = proj_squares[i]
+            # return tag to origin
+            field_oriented_inv_axis_matrix = settings.TAGS_INVERSE[tag_id]
+            tag_transformation_matrix, abs_distance = tag_projected_points_to_transform(tag=projected_points,
+                                                                                        width=frame_width,
+                                                                                        height=frame_height,
+                                                                                        tag_shape=tag.BASIS_TAG_COORDS_MATRIX,
+                                                                                        focal_length_x=focal_length_x,
+                                                                                        focal_length_y=focal_length_y)
+            camera_oriented_axis_mat = tag_transformation_matrix @ tag.BASIS_AXIS_MATRIX
+            extrinsic_matrix = camera_oriented_axis_mat @ field_oriented_inv_axis_matrix
+            cam_xyz = extrinsic_matrix_to_camera_position(extrinsic_matrix)
+            rotation = extrinsic_matrix_to_rotation(extrinsic_matrix)
+
+            # this part here does some epic pose estimation refinement
+            pose_estimates.append(cam_xyz)
+            rot_estimates.append(np.array(rotation))
+            conf = estimate_confidence(cam_xyz, abs_distance, rotation, delta_time, tag_id)
+            estimation_confidences.append(conf)
+
+    if len(pose_estimates) > 0:
+        last_time = cur_time
+        cam_xyz, rotation = refine_estimation(pose_estimates, rot_estimates, estimation_confidences,
+                                              delta_time)
+        if last_is_accurate:
+            submit_final_estimation(cam_xyz, rotation)
+    else:
+        cam_xyz = last_pos_estimate
+        last_is_accurate = False
+    return frame, cam_xyz
 
 
 def test_with_sample_images():  # sample images were also taken with lifecam
@@ -222,7 +272,6 @@ def test_with_sample_images():  # sample images were also taken with lifecam
         # x, y, w, h = roi
         # img = dst[y:y + h, x:x + w]
         while not ((cv2.waitKey(1) & 0xFF) == ord(" ")):
-
             # Generate random Gaussian noise
             mean = (0, 0, 0)
             stddev = (25, 25, 25)
@@ -231,13 +280,12 @@ def test_with_sample_images():  # sample images were also taken with lifecam
 
             # Add noise to image
             image = cv2.add(img, noise)
-            _, image, _ = runPipeline(image, None)
+            _, image, _ = process_frame(image, None)
             cv2.imshow("display", image)
     cv2.destroyAllWindows()
 
 
 def test_with_cam():
-
     cam.set(cv2.CAP_PROP_FRAME_WIDTH, LIFE_CAM_WIDTH)
     cam.set(cv2.CAP_PROP_FRAME_HEIGHT, LIFE_CAM_HEIGHT)
     # cam.set(cv2.CAP_PROP_FPS, 30)
@@ -258,12 +306,36 @@ def test_with_cam():
             # # crop the image
             # x, y, w, h = roi
             # frame = dst[y:y + h, x:x + w]
-            _, frame, _ = runPipeline(frame, None)
+            frame, _ = process_frame(frame)
             cv2.imshow('Display', frame)
             cv2.waitKey(1)
-        print((time.time() - s))
+            print((time.time() - s))
+
+
+def test_with_cam_headless():
+    # cam.set(cv2.CAP_PROP_FRAME_WIDTH, LIFE_CAM_WIDTH)
+    # cam.set(cv2.CAP_PROP_FRAME_HEIGHT, LIFE_CAM_HEIGHT)
+    # cam.set(cv2.CAP_PROP_FPS, 25)
+    cam.set(cv2.CAP_PROP_EXPOSURE, -8)
+    _, frame = cam.read()
+    cam.set(cv2.CAP_PROP_FPS, 30)
+    # cam.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y', 'U', 'Y', 'V'))
+
+    while True:
+        s = time.time()
+        ok, frame = cam.read()
+        if ok:
+            # dst = cv2.remap(frame, mapx, mapy, cv2.INTER_LINEAR)
+            # # crop the image
+            # x, y, w, h = roi
+            # frame = dst[y:y + h, x:x + w]
+            frame, _ = process_frame_headless(frame)
+            cv2.waitKey(1)
+            print(1/(time.time() - s))
+            # print(cam.get(cv2.CAP_PROP_FPS))
 
 
 if __name__ == '__main__':
-    test_with_cam()
+    test_with_cam_headless()
+    # test_with_cam()
     # test_with_sample_images()

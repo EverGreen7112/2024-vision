@@ -2,6 +2,8 @@ import copy
 import math
 import numpy as np
 import cv2
+from typing import List as list
+from typing import Tuple as tuple
 
 
 def detect_april_tags(image: np.ndarray) -> tuple[list[list[list[int]]], list[int]]:

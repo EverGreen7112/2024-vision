@@ -152,3 +152,4 @@ cython_debug/
 #.idea/
 
 2024VisionSampleImages/
+Localization/log.txt

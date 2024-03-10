@@ -50,7 +50,7 @@ CAMERA_TO_ROBOT_CENTER_TRANSFORMATION = np.array([[1, 0, 0, 0],
                                                   [0, 0, 1, 0],
                                                   [0, 0, 0, 1]])
 
-EXPOSURE = -7
+EXPOSURE = -7.7
 
 HELATH_CHECK_INTERVAL = 0.5  # the amount of time we wait between sending health check signals
 

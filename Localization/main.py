@@ -1,3 +1,4 @@
+import datetime
 import math
 import os
 import socket
@@ -46,12 +47,13 @@ last_time = 0  # the time of the last pos estimation, NOT necessarily the time o
 last_is_accurate = False  # tells you if the last estimation is accurate
 
 # these values are for refining the estimation
-MAX_VEL = 4  # maximum velocity of the robot, if passed we can assume there was a problem with the pose estimation
+MAX_VEL = 5  # maximum velocity of the robot, if passed we can assume there was a problem with the pose estimation
 MAX_ACCEL = 15000  # maximum acceleration of the robot, if passed we can assume there was a problem with the pose
-MIN_CONFIDENCE = 0.14
-SPEED_WEIGHT = 2  # how much weight we give speed in confidence estimation
+MIN_CONFIDENCE = 0.12
+SPEED_WEIGHT = 1.7  # how much weight we give speed in confidence estimation
 ROT_WEIGHT = 1.1  # how much weight we give the rotation in confidence estimation
-DISTANCE_FROM_AVG_WEIGHT = 6  # how much weight do we give to distance from the average in confidence estimation
+DISTANCE_FROM_AVG_WEIGHT = 12  # how much weight do we give to distance from the average in confidence estimation
+DISTANCE_WEIGHT = 1.5  # how much weight do we give to distance of the april tag to the robot
 QUANTIZATION_LEVELS = 64  # how many levels do we want to divide the image to
 
 
@@ -88,7 +90,7 @@ def draw_tag_axis(frame, camera_oriented_axis_mat, projected_points):
 
 
 def estimate_confidence(xyz, abs_distance, rotation, delta_time, tag_id):
-    return 1 / (abs_distance +
+    return 1 / (DISTANCE_WEIGHT * abs_distance +
                 (SPEED_WEIGHT * (np.linalg.norm(last_pos_estimate - xyz) / delta_time)) +
                 ((abs(settings.TAGS[tag_id].yaw + rotation[0]) % math.pi) * ROT_WEIGHT))
 
@@ -378,8 +380,9 @@ if __name__ == '__main__':
         except Exception as e:
             s = str(e)
             f = open("log.txt", "a+")
-            if (os.stat("log.txt").st_size) > settings.MAX_LOG_SIZE:
+            if os.stat("log.txt").st_size > settings.MAX_LOG_SIZE:
                 f.truncate(0)
-            f.write(f"{s}\n")
+            now = datetime.datetime.now()
+            f.write(f"{str(now)}:  {s}\n")
             f.close()
     # test_with_sample_images()

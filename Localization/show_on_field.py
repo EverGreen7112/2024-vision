@@ -4,7 +4,6 @@ import cv2
 import copy
 
 
-# TODO: update to use this seasons field
 METER_TO_PIXELS_X = 164.78798618850138
 METER_TO_PIXELS_Y = 164.009249323681
 UNIT = 71.12

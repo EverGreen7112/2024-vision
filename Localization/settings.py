@@ -40,17 +40,17 @@ TAGS = {1: Tag(x=593.68, z=9.68, y=53.38, yaw_degrees=120),
 
 TAGS_INVERSE = {tag_id: TAGS[tag_id].get_inv_field_axis_matrix() for tag_id in TAGS.keys()}
 
-# CAMERA_TO_ROBOT_CENTER_TRANSFORMATION = np.array([[1, 0, 0, 0.154],
-#                                                   [0, 1, 0, 0.25],
-#                                                   [0, 0, 1, -0.392],
-#                                                   [0, 0, 0, 1]])
-
-CAMERA_TO_ROBOT_CENTER_TRANSFORMATION = np.array([[1, 0, 0, 0],
-                                                  [0, 1, 0, 0],
-                                                  [0, 0, 1, 0],
+CAMERA_TO_ROBOT_CENTER_TRANSFORMATION = np.array([[1, 0, 0, 0.154],
+                                                  [0, 1, 0, -0.25],
+                                                  [0, 0, 1, 0.392],
                                                   [0, 0, 0, 1]])
 
-EXPOSURE = -7.7
+# CAMERA_TO_ROBOT_CENTER_TRANSFORMATION = np.array([[1, 0, 0, 0],
+#                                                   [0, 1, 0, 0],
+#                                                   [0, 0, 1, 0],
+#                                                   [0, 0, 0, 1]])
+
+EXPOSURE = -7.8
 
 HELATH_CHECK_INTERVAL = 0.5  # the amount of time we wait between sending health check signals
 

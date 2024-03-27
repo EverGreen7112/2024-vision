@@ -195,9 +195,9 @@ def process_frame(frame):
             camera_oriented_axis_mat = tag_transformation_matrix @ tag.BASIS_AXIS_MATRIX
             extrinsic_matrix = camera_oriented_axis_mat @ field_oriented_inv_axis_matrix
             # robot extrinsic matrix is the transformation from the robots 0 point to camera oriented coordinates
-            robot_extrinsic_matrix = extrinsic_matrix @ settings.CAMERA_TO_ROBOT_CENTER_TRANSFORMATION
+            robot_extrinsic_matrix = settings.CAMERA_TO_ROBOT_CENTER_TRANSFORMATION @ extrinsic_matrix
             robot_xyz = extrinsic_matrix_to_camera_position(robot_extrinsic_matrix)
-            rotation = extrinsic_matrix_to_rotation(extrinsic_matrix)
+            rotation = extrinsic_matrix_to_rotation(robot_extrinsic_matrix)
 
             # this part here does some epic pose estimation refinement
             pose_estimates.append(robot_xyz)
@@ -280,6 +280,7 @@ def test_with_sample_images():  # sample images were also taken with lifecam
     for filename in os.listdir(folder):
         img = cv2.imread(os.path.join(folder, filename))
         if img is not None:
+            img = cv2.resize(img, (LIFE_CAM_WIDTH, LIFE_CAM_HEIGHT), interpolation=cv2.INTER_AREA)
             images.append(img)
     show_on_field.thread.start()
 
@@ -375,8 +376,9 @@ def test_with_cam_headless():
 if __name__ == '__main__':
     while True:
         try:
-            # test_with_cam()
-            test_with_cam_headless()
+            test_with_sample_images()
+            test_with_cam()
+            # test_with_cam_headless()
         except Exception as e:
             s = str(e)
             f = open("log.txt", "a+")
